@@ -1,0 +1,56 @@
+name: APK Derle
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # Repoda sadece lib/ ve pubspec.yaml varsa Android klasörünü otomatik oluşturur.
+      # android/ klasörünü kendin yüklediysen bu adım atlanır.
+      - name: Eksik platform dosyalarını oluştur
+        run: |
+          if [ ! -d android ]; then
+            flutter create . --project-name uc_tus --org com.muba14 --platforms android
+            rm -f test/widget_test.dart
+          fi
+
+      - run: flutter pub get
+
+      - name: APK derle
+        run: flutter build apk --release
+
+      - name: APK'yı yeniden adlandır
+        run: mv build/app/outputs/flutter-apk/app-release.apk uc-tus.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: uc-tus-apk
+          path: uc-tus.apk
+
+      # v1.0.0 gibi bir etiket gönderilince APK'yı Releases sayfasına ekler
+      - name: Release oluştur
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: uc-tus.apk
